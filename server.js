@@ -15,6 +15,7 @@ const authRoute = require('./routes/auth');
 const postRoute = require('./routes/posts');// change later!!!
 const groupRoute = require('./routes/groups');
 const userRoute = require('./routes/userDetails');
+const testsRoute = require('./routes/tests');
 
 //neaded middleware
 app.use(express.json());
@@ -30,6 +31,7 @@ app.use('/api/user', authRoute);
 app.use('/api/post', postRoute);
 app.use('/api/groups', groupRoute);
 app.use('/api/userinfo', userRoute);
+app.use('/api/tests', testsRoute);
 
 db.connect( ( err, client ) => {
     if (err) console.log(err);

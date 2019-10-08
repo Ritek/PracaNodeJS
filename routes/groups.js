@@ -6,7 +6,7 @@ const verify = require('./verifyToken');
 
 router.post('/creategroup', async (req, res) => {
 
-    teacherId = oID(req.body.id);
+    let teacherId = oID(req.body.id);
     const group = {
         teacher: teacherId,
         name: req.body.name,
