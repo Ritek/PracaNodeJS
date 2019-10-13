@@ -111,4 +111,53 @@ router.post('/deletetest', async (req, res) => {
 
 });
 
+
+router.post('/publishtest', async (req, res) => {
+    //let teacherId = oID(req.body.userId);
+    let groupId = oID(req.body.groupId);
+    let testId = oID(req.body.testId);
+
+    var dataBase = db.getDb();
+    await dataBase.collection('groups').updateOne({_id: groupId}, {$addToSet: {tests: testId}}).then(result => {
+        res.status(200).send('ok');
+    }).catch(error => {
+        res.status(400).send('coud not add test to group');
+    })
+});
+
+
+router.post('/studenttests', async (req, res) => {
+    //let teacherId = oID(req.body.userId);
+    let groupId = oID(req.body.groupId);
+    let testId = oID(req.body.testId);
+
+    var dataBase = db.getDb();
+    await dataBase.collection('groups').updateOne({_id: groupId}, {$addToSet: {tests: testId}}).then(result => {
+        res.status(200).send('ok');
+    }).catch(error => {
+        res.status(400).send('coud not add test to group');
+    })
+});
+
+
+router.post('/solvetest', async (req, res) => {
+    console.log('solvetest');
+    const testId = oID(req.body.testId);
+    console.log('testId:', testId);
+
+    try {
+        var dataBase = db.getDb();
+        let test = await dataBase.collection('tests').findOne({_id: testId});
+        if (test) {
+            console.log('X');
+            console.log(">>", test);
+            res.status(200).send(test);
+        } else {
+            res.status(400).send('Could not find a test');
+        }
+    } catch(error) {
+        console.log(error);
+    }
+});
+
 module.exports = router;
