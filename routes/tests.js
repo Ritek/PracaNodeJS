@@ -127,16 +127,32 @@ router.post('/publishtest', async (req, res) => {
 
 
 router.post('/studenttests', async (req, res) => {
-    //let teacherId = oID(req.body.userId);
-    let groupId = oID(req.body.groupId);
-    let testId = oID(req.body.testId);
+    console.log(req.body.id);
+    let studentId = oID(req.body.id);
 
-    var dataBase = db.getDb();
-    await dataBase.collection('groups').updateOne({_id: groupId}, {$addToSet: {tests: testId}}).then(result => {
-        res.status(200).send('ok');
-    }).catch(error => {
-        res.status(400).send('coud not add test to group');
-    })
+    try {
+        var dataBase = db.getDb();
+        let groups = await dataBase.collection('groups').find({members: studentId}).toArray();
+
+        let testsArray = [];
+
+        for (let i=0;i<groups.length;i++) {
+            let tests = groups[i].tests;
+            let tempArr = [];
+
+            for (let j=0;j<tests.length;j++) {
+                let test = await dataBase.collection('tests').findOne({_id: oID(tests[j])});
+                tempArr.push({id: oID(tests[j]), name: test.name, time: test.time});
+            }
+            testsArray.push({groupName: groups[i].name, tests: tempArr});
+        }
+
+        res.status(200).send(testsArray);
+    } catch(error) {
+        console.log(error);
+        res.status(400).send('Error');
+    }
+    
 });
 
 
