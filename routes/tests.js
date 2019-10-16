@@ -97,9 +97,10 @@ router.post('/deletetest', async (req, res) => {
 
     try {
         var dataBase = db.getDb();
-        await dataBase.collection('tests').deleteOne({_id: testId})
-        .then(res => {
-            res.send('deleted');
+        await dataBase.collection('tests').deleteOne({_id: testId}).then(result => {
+            dataBase.collection('groups').updateMany( {}, {$pull: {tests: testId}}).then(result2 => {
+                res.status(200).send('deleted');
+            })
         }).catch(error => {
             console.log(error);
             res.status(400).send('error');

@@ -156,6 +156,10 @@ router.post('/addtests', async (req, res) => {
     let groupId = oID(req.body.groupId);
     let testArray = req.body.tests;
 
+    for (let i=0;i<testArray.length;i++) {
+        testArray[i] = oID(testArray[i]);
+    }
+
     console.log(groupId);
     console.log(testArray);
 
