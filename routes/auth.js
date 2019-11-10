@@ -12,20 +12,20 @@ const oID = require('mongodb').ObjectID;
 
 
 router.post('/register', async (req, res) => {
-    // validation
-    console.log(req.body);
+    console.log("login:", req.body.userLogin);
 
     const {error} = registerValidaion(req.body);
-    if (error) return res.status(400).send(error.details[0].message); 
+    if (error) return res.status(400).send(error.details[0].message);
 
     console.log('After validation');
+
     // hash the password
     const salt = await bcrypt.genSalt(10);
     const hashPassword = await bcrypt.hash(req.body.password, salt);
 
     // create login from email if not provided
     let userLogin;
-    if (req.body.login === '') {
+    if (req.body.userLogin === '' || req.body.userLogin === undefined) {
         userLogin = req.body.email.substr(0, req.body.email.indexOf('@'));
     } else {
         userLogin = req.body.email;
@@ -34,12 +34,15 @@ router.post('/register', async (req, res) => {
     // create user
     const user = {
         login: userLogin,
+        name: req.body.name,
+        surname: req.body.surname,
         email: req.body.email,
         password: hashPassword,
         role: 'student',
-        refreshToken: '',
         groups: [],
     }
+
+    console.log(user);
 
     try {
         var dataBase = db.getDb();
@@ -59,32 +62,31 @@ router.post('/register', async (req, res) => {
 
 router.post('/login', async (req, res) => {
 
-    // validation
-    const {error} = loginValidaion(req.body);
-    if (error) return res.status(400).send(error.details[0].message);
+    console.log('email:', req.body.email);
+    console.log('password:', req.body.password);
 
     try {
         var dataBase = db.getDb();
 
         // check if the login exists
         const user = await dataBase.collection('users').findOne({email: req.body.email});
-        if (!user) res.status(400).send('Email is not found');
+        if (!user) res.status(400).send('Email was not found');
 
         // check if the password exists
         const validPassword = await bcrypt.compare(req.body.password, user.password);
-        if (!validPassword) res.status(400).send('Password is not found');
+        if (!validPassword) res.status(400).send('Password was not found');
         
-        console.log('Login correct!');
         // crete and assign a token
-        const token = jwt.sign({id: user._id, login: user.login, role: user.role}, process.env.TOKEN, { expiresIn: '1m' });
-        const refreshToken = jwt.sign({id: user._id, password: user.password}, process.env.REFRESH_TOKEN, {expiresIn: "3h"});
-        await dataBase.collection('users').updateOne({email: req.body.email}, {$set: {refreshToken: refreshToken}});
+        const token = jwt.sign({id: user._id}, process.env.TOKEN);
+        const session = jwt.sign({id: user._id, login: user.login, role: user.role}, process.env.TOKEN);
+        //const refreshToken = jwt.sign({id: user._id, password: user.password}, process.env.REFRESH_TOKEN, {expiresIn: "3h"});
+        //await dataBase.collection('users').updateOne({email: req.body.email}, {$set: {refreshToken: refreshToken}});
 
-        //res.cookie('refreshToken', 'cookie');
-        res.status(200).cookie('refreshToken', 'cookie', {httpOnly: true, path: "/auth"}).send({token, refreshToken});
+        res.status(200).cookie('cookie', token, {httpOnly: true}).send({token: session});
 
     } catch(error) {
-        res.status(400).send('Invalid Token');
+        console.log(error);
+        //res.status(400).send('Invalid Token');
     }
 
 });
