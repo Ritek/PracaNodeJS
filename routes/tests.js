@@ -187,10 +187,10 @@ router.post('/studenttests', verify, async (req, res) => {
             for (let j=0;j<tests.length;j++) {
                 let test = await dataBase.collection('tests').findOne({_id: oID(tests[j].test)});
 
-                groupTests.push({testId: test._id, testName: test.name, testTime: tests[j].time, groupName: groups[i].name});
+                if (test) groupTests.push({testId: test._id, testName: test.name, testTime: tests[j].time, groupName: groups[i].name});
             }
             //testsArray.push({testName: test.name, groupName: group[i].name, test: test.questions})
-            testsArray.push(groupTests);
+            if (groupTests.length !== 0) testsArray.push(groupTests);
         }
 
         //console.log(testsArray);
@@ -210,7 +210,15 @@ const clearAnswers = (test) => {
     let questions = test.questions;
 
     for (let i=0;i<questions.length;i++) {
-        if (questions[i].type === "choices") questions[i].answer = "";
+        if (questions[i].type === "open") {
+            questions[i].answer = "";
+            delete questions[i].regularExpression;
+            delete questions[i].regArray;
+        }
+
+        if (questions[i].type === "choices") {
+            questions[i].answer = "";
+        }
 
         if (questions[i].type === "truefalse") {
             for (let j=0;j<questions[i].subquestions.length;j++) questions[i].subquestions[j][1] = "";
@@ -220,6 +228,7 @@ const clearAnswers = (test) => {
 
             // prepare for student answer
             questions[i].answer = [];
+            delete questions[i].sentences;
 
             // shuffle blanks
             let number = questions[i].blanks.length;
@@ -233,13 +242,19 @@ const clearAnswers = (test) => {
                 questions[i].answer.push("")
             }
 
-            // clear sentences
-            for (let j=0;j<questions[i].sentences.length;j++) {
-                let temp = questions[i].sentences[j].replace(/(?<=\[)(.*?)(?=\])/g, "");
-                //console.log(temp)
-                questions[i].sentences[j] = temp;
+            // clear sentences and give index
+            let lines = questions[i].sentencesArr;
+            let num = 0;
+            for (let j=0;j<lines.length;j++) {
+                let arr = lines[j].split(" ");
+                for (let w=0;w<arr.length;w++) {
+                    if (arr[w].includes('[')) {
+                        arr[w] = "["+num+"]";
+                        num++;
+                    } 
+                }
+                questions[i].sentencesArr[j] = arr.join(" ");
             }
-            
         }
     }   
 }
@@ -285,29 +300,89 @@ router.post('/solvetest', verify, async (req, res) => {
 });
 
 
-const checkMistakes = (questions, stencil) => {
+const checkMistakes = (questions, stencil, test) => {
+    console.log('==============')
+    console.log('check Mistakes')
+    let status = 'graded';
+    let allPossiblePoints = 0;
+    let allGotPoints = 0;
+
     for (let i=0;i<questions.length;i++) {
-        if (questions[i].type === "choices") {
-            if (questions[i].answer === stencil[i].answer) questions[i].correct = true;
-            else questions[i].correct = false;
+        let numOfQuestions = 0;
+        let correct = 0;
+
+        if (questions[i].type === "open") {
+            //console.log('open')
+            numOfQuestions = stencil[i].regArray.length;
+
+            for (let j=0;j<stencil[i].regArray.length;j++) {
+                if (questions[i].answer.indexOf(stencil[i].regArray[j]) !== -1) correct++;
+            }
         }
-        if (test.questions[i].type === "truefalse") {
-            for (let j=0;j<questions[i].subquestions.length;i++) {
-                if (questions[i].subquestions[j] === stencil[i].subquestions[j]) {
+        if (questions[i].type === "choices") {
+            //console.log('Choices');
+            numOfQuestions = 1;
+
+            if (questions[i].answer === stencil[i].answer[1]) {
+                correct++;
+                correctAns = true;
+            }
+        }
+        if (questions[i].type === "truefalse") {
+            //console.log('TrueFalse');
+            numOfQuestions = stencil[i].subquestions.length;
+
+            for (let j=0;j<questions[i].subquestions.length;j++) {
+                if (questions[i].subquestions[j][1] === stencil[i].subquestions[j][1]) {
                     questions[i].subquestions[j].push('correct');
+                    correct++;
                 } else questions[i].subquestions[j].push('incorrect');
             }
         }
-        if (test.questions[i].type === "blanks") console.log();
+        if (questions[i].type === "blanks") {
+            //console.log('Blanks');
+            numOfQuestions = stencil[i].blanks.length;
+
+            let index = 0;
+            let sent = stencil[i].sentencesArr;
+            for (let j=0;j<sent.length;j++) {
+                let words = sent[j].split(" ");
+                for (let k=0;k<words.length;k++) {
+                    if (words[k].includes('[')) {
+                        let x;
+                        if (questions[i].answer[index] === stencil[i].blanks[index]) {
+                            correct++;
+                            x = 'true';
+                        }
+                        else x = 'false';
+                        words[k] = "[" + questions[i].answer[index] + "," + x + "]";
+                        index++;
+                    }
+                }
+                sent[j] = words.join(" ");
+            }
+            questions[i].answer = sent;
+            delete questions[i].sentencesArr
+        }
+
+        //in for
+        questions[i].correct = (stencil[i].points / numOfQuestions) * correct;
+        allPossiblePoints += stencil[i].points;
+        allGotPoints += questions[i].correct;
     }
+
+    // change status and give points
+    test.status = status;
+    test.allPossiblePoints = allPossiblePoints;
+    test.allGotPoints = allGotPoints;
 }
 
 
 router.post('/savesolved', verify, async (req, res) => {
     console.log('savesolved');
-    console.log(req.body);
+    //console.log(req.body);
     let test = req.body.test;
-    const userId = oID(req.userId);
+    const userId = oID(req.user.id);
     const testId = oID(test._id);
     const groupId = oID(test.fromGroup);
 
@@ -318,25 +393,73 @@ router.post('/savesolved', verify, async (req, res) => {
             _id: groupId,
             tests: {$elemMatch: {test: testId}}
         });
-        //console.log("autoCheck", group);
 
-        let test;
+        let autoCheck;
         for (let i=0;i<group.tests.length;i++) {
-            if (group.tests[i].test.equals(testId)) test = group.tests[i];
+            if (group.tests[i].test.equals(testId)) autoCheck = group.tests[i].autoCheck;
         }
-        console.log(test);
-        let autoCheck = test.autoCheck;
+        //console.log('autoCheck:', autoCheck);
+
         let stencil = await dataBase.collection('tests').findOne({_id: testId});
 
-        /* let insert = await dataBase.collection('solved').insertOne(test);
+        if (test && stencil) console.log('Both exisits');
+        console.log("autoCheck", autoCheck);
+        if (autoCheck) checkMistakes(test.questions, stencil.questions, test);
+
+        //console.log(test);
+
+        test.solvedBy = userId;
+        delete test._id;
+
+        let insert = await dataBase.collection('solved').insertOne(test);
         if (insert) {
             res.status(200).send("Saved solved");
         } else {
             res.status(400).send('Could not save a test');
-        } */
+        }
     } catch(error) {
         console.log(error);
         res.status(400).send('Could not save a test');
+    }
+});
+
+
+router.post('/studentsolved', verify, async (req, res) => {
+    console.log('studentsolved');
+    const userId = oID(req.user.id);
+    console.log(userId)
+
+    try {
+        var dataBase = db.getDb();
+        let tests = await dataBase.collection('solved').find({solvedBy: userId, status: 'graded'}).toArray();
+
+        console.log(tests)
+
+        for (let i=0;i<tests.length;i++) {
+            let group = await dataBase.collection('groups').findOne({_id: oID(tests[i].fromGroup)});
+            tests[i].groupName = group.name;
+            delete tests[i].questions;
+        }
+
+        res.status(200).send(tests);
+    } catch(error) {
+        console.log(error);
+    }
+});
+
+
+router.post('/solvederrors', verify, async (req, res) => {
+    console.log('solvederrors')
+    const userId = oID(req.user.id);
+    const testId = oID(req.body.testId);
+
+    try {
+        var dataBase = db.getDb();
+        let test = await dataBase.collection('solved').findOne({_id: testId, solvedBy: userId});
+
+        res.status(200).send(test);
+    } catch(error) {
+        console.log(error);
     }
 });
 
