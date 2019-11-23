@@ -6,8 +6,10 @@ const verify = require('./verifyToken');
 
 router.post('/createtest', async (req, res) => {
     let teacherId = oID(req.body.id);
-    console.log(req.body);
-
+    console.log("body:", req.body);
+    console.log("files:", req.files);
+    
+    /*
     let obj = {
         author: teacherId,
         name: req.body.test.name,
@@ -15,6 +17,8 @@ router.post('/createtest', async (req, res) => {
         questions: req.body.test.questions,
         access: req.body.access,
     }
+
+    console.log("files:", req.files);
 
     try {
         var dataBase = db.getDb();
@@ -24,7 +28,7 @@ router.post('/createtest', async (req, res) => {
     } catch(error) {
         console.log(error);
         res.status(400).send("Error");
-    }
+    } */
 });
 
 
@@ -398,15 +402,10 @@ router.post('/savesolved', verify, async (req, res) => {
         for (let i=0;i<group.tests.length;i++) {
             if (group.tests[i].test.equals(testId)) autoCheck = group.tests[i].autoCheck;
         }
-        //console.log('autoCheck:', autoCheck);
 
         let stencil = await dataBase.collection('tests').findOne({_id: testId});
 
-        if (test && stencil) console.log('Both exisits');
-        console.log("autoCheck", autoCheck);
         if (autoCheck) checkMistakes(test.questions, stencil.questions, test);
-
-        //console.log(test);
 
         test.solvedBy = userId;
         delete test._id;
