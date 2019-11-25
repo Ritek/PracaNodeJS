@@ -4,37 +4,46 @@ const oID = require('mongodb').ObjectID;
 
 const verify = require('./verifyToken');
 
-router.post('/createtest', async (req, res) => {
-    let teacherId = oID(req.body.id);
-    console.log("body:", req.body);
-    console.log("files:", req.files);
-    
-    /*
-    let obj = {
-        author: teacherId,
-        name: req.body.test.name,
-        tags: req.body.test.tags,
-        questions: req.body.test.questions,
-        access: req.body.access,
+const fs = require('fs');
+const xfs = require('fs-extra');
+
+router.post('/createtest', verify, async (req, res) => {
+    let test = JSON.parse(req.body.test);
+    test.author = oID(req.user.id);
+
+    //console.log(test);
+    // create folder for test
+    fs.mkdirSync(`${__dirname+'/../'}/pictures/${req.user.id}/${test.name}`, (err) => {
+        if (err) throw err;
+    });
+
+    // save images 
+    for (let i=0;i<test.questions.length;i++) {
+        if (test.questions[i].image64 !== undefined && test.questions[i].picture !== undefined) {
+            temp = test.questions[i].image64;
+            let image = temp.replace(/^data:image\/png;base64,/, "");
+            let buff = new Buffer.from(image, 'base64');
+        
+            fs.writeFile(`${__dirname+'/../'}/pictures/${req.user.id}/${test.name}/ex-${i}.png`, buff, (err) => {
+                if (err) console.log(err);
+            });
+
+            test.questions[i].picture = `static/${req.user.id}/${test.name}/ex-${i}.png`;
+        }
+
+        // delete base 64 encoded image and set path to public folder
+        delete test.questions[i].image64;
     }
 
-    console.log("files:", req.files);
-
-    try {
-        var dataBase = db.getDb();
-        await dataBase.collection('tests').insertOne(obj);
-
-        res.status(200).send('Test added');
-    } catch(error) {
-        console.log(error);
-        res.status(400).send("Error");
-    } */
+    var dataBase = db.getDb();
+    await dataBase.collection('tests').insertOne(test);
+    res.status(200).send('OK');
 });
 
 
-router.post('/gettests', async (req, res) => {
+router.post('/gettests', verify, async (req, res) => {
     console.log('gettests');
-    let teacherId = oID(req.body.id);
+    let teacherId = oID(req.user.id);
 
     try {
         var dataBase = db.getDb();
@@ -53,14 +62,13 @@ router.post('/gettests', async (req, res) => {
 });
 
 
-router.post('/gettest', async (req, res) => {
+router.post('/gettest', verify, async (req, res) => {
     let testId = oID(req.body.testId);
-    let teacherId = oID(req.body.userId);
     console.log('gettest');
 
     try {
         var dataBase = db.getDb();
-        await dataBase.collection('tests').findOne({_id: testId}).then(result => {
+        await dataBase.collection('tests').findOne({_id: testId, author: oID(req.user.id)}).then(result => {
             console.log(">", result);
             res.status(200).send(result);
         }).catch(error => {
@@ -73,9 +81,9 @@ router.post('/gettest', async (req, res) => {
 });
 
 
-router.post('/getsomonestest', async (req, res) => {
+router.post('/getsomonestest', verify, async (req, res) => {
     let testId = oID(req.body.testId);
-    let teacherId = oID(req.body.userId);
+    let teacherId = oID(req.user.id);
 
     try {
         var dataBase = db.getDb();
@@ -99,14 +107,44 @@ router.post('/getsomonestest', async (req, res) => {
     }
 });
 
-
-router.post('/edittest', async (req, res) => {
-    let test = req.body.test;
-    let teacherId = oID(req.body.id);
+router.post('/edittest', verify, async (req, res) => {
+    console.log('edittest');
+    let test = JSON.parse(req.body.test);
+    let teacherId = oID(req.user.id);
     let testId = oID(test._id);
 
-    //console.log(teacherId);
-    //console.log(testId);
+    for (let i=0;i<test.questions.length;i++) {
+
+        if (test.questions[i].image64 !== undefined) {
+            temp = test.questions[i].image64;
+            let image = temp.replace(/^data:image\/png;base64,/, "");
+            let buff = new Buffer.from(image, 'base64');
+        
+            fs.writeFile(`${__dirname+'/../'}/pictures/${req.user.id}/${test.name}/ex-${i}.png`, buff, (err) => {
+                if (err) console.log(err);
+            });
+
+            test.questions[i].picture = `static/${req.user.id}/${test.name}/ex-${i}.png`;
+        } 
+        
+        if (test.questions[i].picture === undefined) {
+            console.log(`Checking ex-${i}.png`);
+            fs.access(`${__dirname+'/../'}/pictures/${req.user.id}/${test.name}/ex-${i}.png`, fs.F_OK, (err) => {
+                if (err) {
+                    console.log(err);
+                }
+
+                fs.unlink(`${__dirname+'/../'}/pictures/${req.user.id}/${test.name}/ex-${i}.png`, (err) => {
+                    if (err) {
+                        console.log(err);
+                        return;
+                    }
+                    console.log('File Deleted');
+                });
+            })
+        }
+
+    }
 
     try {
         var dataBase = db.getDb();
@@ -114,7 +152,7 @@ router.post('/edittest', async (req, res) => {
         let newAccess = test.access;
         console.log('access:', newAccess);
 
-        if (newAccess !== null && newAccess.length > 2) {
+        if (newAccess !== null && newAccess !== undefined && newAccess.length > 2) {
             let temp = newAccess.split(',');
             for (let i=0;i<temp.length;i++) {
                 try {
@@ -143,7 +181,14 @@ router.post('/deletetest', verify, async (req, res) => {
 
     try {
         var dataBase = db.getDb();
+        let test = await dataBase.collection('tests').findOne({_id: testId});
+
+
         await dataBase.collection('tests').deleteOne({_id: testId}).then(result => {
+            xfs.remove(`${__dirname+'/../'}/pictures/${req.user.id}/${test.name}`, err => {
+                console.log(err);
+            })
+
             dataBase.collection('groups').updateMany( {}, {$pull: {tests: testId}}).then(result2 => {
                 res.status(200).send('deleted');
             })
