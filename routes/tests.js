@@ -349,10 +349,9 @@ router.post('/solvetest', verify, async (req, res) => {
 });
 
 
-const checkMistakes = (questions, stencil, test) => {
+const checkMistakes = (questions, stencil, test, autoCheck) => {
     console.log('==============')
     console.log('check Mistakes')
-    let status = 'graded';
     let allPossiblePoints = 0;
     let allGotPoints = 0;
 
@@ -360,14 +359,14 @@ const checkMistakes = (questions, stencil, test) => {
         let numOfQuestions = 0;
         let correct = 0;
 
-        if (questions[i].type === "open") {
+        if (questions[i].type === "open" && autoCheck == true) {
             //console.log('open')
             numOfQuestions = stencil[i].regArray.length;
 
             for (let j=0;j<stencil[i].regArray.length;j++) {
                 if (questions[i].answer.indexOf(stencil[i].regArray[j]) !== -1) correct++;
             }
-        }
+        } else if (questions[i].type === "open") numOfQuestions = stencil[i].regArray.length;
         if (questions[i].type === "choices") {
             //console.log('Choices');
             numOfQuestions = 1;
@@ -418,10 +417,14 @@ const checkMistakes = (questions, stencil, test) => {
         questions[i].correct = (stencil[i].points / numOfQuestions) * correct;
         allPossiblePoints += stencil[i].points;
         allGotPoints += questions[i].correct;
+
+        //console.log(i, questions[i].correct, stencil[i].points, numOfQuestions);
     }
 
     // change status and give points
-    test.status = status;
+    if (!autoCheck) test.status = "awaiting"
+    else test.status = "graded"
+
     test.allPossiblePoints = allPossiblePoints;
     test.allGotPoints = allGotPoints;
 }
@@ -450,8 +453,9 @@ router.post('/savesolved', verify, async (req, res) => {
 
         let stencil = await dataBase.collection('tests').findOne({_id: testId});
 
-        if (autoCheck) checkMistakes(test.questions, stencil.questions, test);
+        checkMistakes(test.questions, stencil.questions, test, autoCheck);
 
+        test.groupName = group.name;
         test.solvedBy = userId;
         delete test._id;
 
@@ -471,13 +475,10 @@ router.post('/savesolved', verify, async (req, res) => {
 router.post('/studentsolved', verify, async (req, res) => {
     console.log('studentsolved');
     const userId = oID(req.user.id);
-    console.log(userId)
 
     try {
         var dataBase = db.getDb();
         let tests = await dataBase.collection('solved').find({solvedBy: userId, status: 'graded'}).toArray();
-
-        console.log(tests)
 
         for (let i=0;i<tests.length;i++) {
             let group = await dataBase.collection('groups').findOne({_id: oID(tests[i].fromGroup)});
@@ -494,14 +495,58 @@ router.post('/studentsolved', verify, async (req, res) => {
 
 router.post('/solvederrors', verify, async (req, res) => {
     console.log('solvederrors')
-    const userId = oID(req.user.id);
     const testId = oID(req.body.testId);
 
     try {
         var dataBase = db.getDb();
-        let test = await dataBase.collection('solved').findOne({_id: testId, solvedBy: userId});
+        let test = await dataBase.collection('solved').findOne(
+            {$or: [
+                {_id: testId, solvedBy: oID(req.user.id)},
+                {_id: testId, author: req.user.id}
+            ]}
+        );
 
         res.status(200).send(test);
+    } catch(error) {
+        console.log(error);
+    }
+});
+
+
+
+router.post('/getallsolved', verify, async (req, res) => {
+    console.log('getallsolved')
+    const userId = oID(req.user.id);
+
+    try {
+        var dataBase = db.getDb();
+        let gradedTests = await dataBase.collection('solved').find({author: req.user.id, status: 'graded'}).toArray();
+        let awaitTests = await dataBase.collection('solved').find({author: req.user.id, status: 'awaiting'}).toArray();
+
+        console.log(gradedTests)
+        //gradedTests.forEach(element => delete element.questions);
+        //awaitTests.forEach(element => delete element.questions);
+
+
+        res.status(200).send({gradedTests: gradedTests, awaitTests: awaitTests});
+    } catch(error) {
+        console.log(error);
+    }
+});
+
+
+router.post('/savegraded', verify, async (req, res) => {
+    console.log('savegraded')
+    const test = req.body.test;
+
+    if (!test) return res.status(400).send({msg: 'error'});
+
+    try {
+        var dataBase = db.getDb();           
+        await dataBase.collection('solved').updateOne({_id: oID(test._id), author: req.user.id}, {$set: {questions: test.questions}}).then(result => {
+            if (result.modifiedCount > 0) res.status(200).send({msg: 'Test updated and graded'});
+            else res.status(200).send({msg: 'No changes were made'});
+        })      
     } catch(error) {
         console.log(error);
     }
