@@ -61,34 +61,47 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', async (req, res) => {
-
     console.log('email:', req.body.email);
     console.log('password:', req.body.password);
+    
 
     try {
         var dataBase = db.getDb();
 
         // check if the login exists
         const user = await dataBase.collection('users').findOne({email: req.body.email});
-        if (!user) res.status(400).send('Email was not found');
+        if (!user) return res.status(400).send('Email was not found');
 
         // check if the password exists
         const validPassword = await bcrypt.compare(req.body.password, user.password);
-        if (!validPassword) res.status(400).send('Password was not found');
+        if (!validPassword) return res.status(400).send('Password was not found');
         
         // crete and assign a token
-        const token = jwt.sign({id: user._id}, process.env.TOKEN);
+        const token = jwt.sign({id: user._id, role: user.role}, process.env.TOKEN);
         const session = jwt.sign({id: user._id, login: user.login, role: user.role}, process.env.TOKEN);
-        //const refreshToken = jwt.sign({id: user._id, password: user.password}, process.env.REFRESH_TOKEN, {expiresIn: "3h"});
-        //await dataBase.collection('users').updateOne({email: req.body.email}, {$set: {refreshToken: refreshToken}});
 
-        res.status(200).cookie('cookie', token, {httpOnly: true}).send({token: session});
+        return res.status(200).cookie('Authorization', token, {httpOnly: true}).send({token: session});
 
     } catch(error) {
         console.log(error);
         //res.status(400).send('Invalid Token');
     }
 
+});
+
+router.post('/checktoken', async (req, res) => {
+    console.log('checktoken')
+    const token = req.cookies.Authorization;
+    if (!token) res.status(400).send({error: "Unauthorized"});
+
+    try {
+        const verified = jwt.verify(token, process.env.TOKEN);
+        console.log(verified);
+        return res.status(200).send({status: "OK"});
+    } catch(error) {
+        console.log('invalid')
+        return res.status(400).send({error: "Unauthorized"})
+    }
 });
 
 router.post('/checkRefreshToken', async (req, res) => {

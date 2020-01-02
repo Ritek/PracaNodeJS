@@ -2,26 +2,35 @@ const router = require('express').Router();
 const db = require('../db');
 const jwt = require('jsonwebtoken');
 const decode = require('jwt-decode');
-const fs = require('fs');
+const fs = require('fs').promises;
 const bcrypt = require('bcryptjs');
 
 const verify = require('./verifyToken');
 const oID = require('mongodb').ObjectID;
 
+const getImage = async (userId) => {
+    let data = await fs.readFile(`${__dirname}/../pictures/${userId}/avatar.png`);
+    let str64 = new Buffer(data).toString('base64');
+
+    return(str64);
+}
 
 router.post('/getdetails', verify, async (req, res) => {
+    console.log('getdetails');
+    let userId = oID(req.user.id);
+
     try {
         var dataBase = db.getDb();
-        const temp = await dataBase.collection('users').findOne({_id: oID(req.user.id)});
+        const temp = await dataBase.collection('users').findOne({_id: userId});
 
-        if (!fs.existsSync(`${__dirname+'/../'}/pictures/${req.user.id}/avatar.png`)) {
+        /* if (!fs.existsSync(`${__dirname+'/../'}/pictures/${req.user.id}/avatar.png`)) {
             temp.picture = null; 
-        } else temp.picture = `/${req.user.id}/avatar.png`;
+        } else temp.picture = `/${req.user.id}/avatar.png`; */
 
         user = {
             login: temp.login,
             email: temp.email,
-            imgPath: temp.picture,
+            imgPath: (await getImage(userId)).toString(),
         }
 
         res.status(200).send(user);

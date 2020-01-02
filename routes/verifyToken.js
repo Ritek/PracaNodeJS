@@ -4,7 +4,7 @@ const checkToken = (req, res, next) => {
     //console.log('headers:', req.cookies.cookie);
 
     //const token = req.header('authToken');
-    const token = req.cookies.cookie;
+    const token = req.cookies.Authorization;
     if (!token) {
         return res.status(401).send('Acces Denied');
     }

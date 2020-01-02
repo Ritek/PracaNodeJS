@@ -1,10 +1,11 @@
 const router = require('express').Router();
 const db = require('../db');
 const oID = require('mongodb').ObjectID;
+const jwt = require('jsonwebtoken');
 
 const verify = require('./verifyToken');
 
-const fs = require('fs');
+const fs = require('fs').promises;
 const xfs = require('fs-extra');
 
 router.post('/createtest', verify, async (req, res) => {
@@ -13,7 +14,7 @@ router.post('/createtest', verify, async (req, res) => {
 
     //console.log(test);
     // create folder for test
-    fs.mkdirSync(`${__dirname+'/../'}/pictures/${req.user.id}/${test.name}`, (err) => {
+    fs.mkdir(`${__dirname+'/../'}/pictures/${req.user.id}/${test.name}`, (err) => {
         if (err) throw err;
     });
 
@@ -28,7 +29,7 @@ router.post('/createtest', verify, async (req, res) => {
                 if (err) console.log(err);
             });
 
-            test.questions[i].picture = `static/${req.user.id}/${test.name}/ex-${i}.png`;
+            test.questions[i].picture = `ex-${i}.png`;
         }
 
         // delete base 64 encoded image and set path to public folder
@@ -61,20 +62,35 @@ router.post('/gettests', verify, async (req, res) => {
     }
 });
 
+const getImage = async (userId, testName, i) => {
+    console.log(userId, testName, i);
+    let data = await fs.readFile(`${__dirname}/../pictures/${userId}/${testName}/ex-${i}.png`);
+    let str64 = new Buffer(data).toString('base64');
+
+    return(str64);
+}
+
 
 router.post('/gettest', verify, async (req, res) => {
+    let userId = oID(req.user.id);
     let testId = oID(req.body.testId);
     console.log('gettest');
 
     try {
         var dataBase = db.getDb();
-        await dataBase.collection('tests').findOne({_id: testId, author: oID(req.user.id)}).then(result => {
-            console.log(">", result);
-            res.status(200).send(result);
-        }).catch(error => {
-            console.log(error);
-        })
+        let test = await dataBase.collection('tests').findOne({_id: testId, author: userId});
+        let questions = test.questions;
 
+        for (let i=0;i<questions.length;i++) {
+            console.log(i);
+            if (questions[i].picture !== undefined) {
+                questions[i].picture = "";
+                questions[i].image64 = "";
+                questions[i].image64 = (await getImage(userId, test.name, i)).toString();
+            }
+        }
+        console.log('2!');
+        return res.status(200).send(test);
     } catch(error) {
         console.log(error);
     }
@@ -177,19 +193,22 @@ router.post('/edittest', verify, async (req, res) => {
 
 
 router.post('/deletetest', verify, async (req, res) => {
+    console.log('tests.js, deletetest');
     let testId = oID(req.body.testId);
 
     try {
         var dataBase = db.getDb();
-        let test = await dataBase.collection('tests').findOne({_id: testId});
-
 
         await dataBase.collection('tests').deleteOne({_id: testId}).then(result => {
-            xfs.remove(`${__dirname+'/../'}/pictures/${req.user.id}/${test.name}`, err => {
+            xfs.remove(`${__dirname+'/../'}/pictures/${req.user.id}/${result.name}`, err => {
                 console.log(err);
             })
 
-            dataBase.collection('groups').updateMany( {}, {$pull: {tests: testId}}).then(result2 => {
+            dataBase.collection('groups').updateMany( 
+                { }, 
+                { $pull: {tests: {test: testId}} },
+                { multi: true }
+            ).then(result2 => {
                 res.status(200).send('deleted');
             })
         }).catch(error => {
@@ -270,25 +289,29 @@ const clearAnswers = (test) => {
         }
 
         if (questions[i].type === "truefalse") {
-            for (let j=0;j<questions[i].subquestions.length;j++) questions[i].subquestions[j][1] = "";
+            if (questions[i].subquestions !== undefined) {
+                for (let j=0;j<questions[i].subquestions.length;j++) questions[i].subquestions[j][1] = "";
+            }
+            
         }
         
         if (questions[i].type === "blanks") {
-
             // prepare for student answer
             questions[i].answer = [];
             delete questions[i].sentences;
 
             // shuffle blanks
-            let number = questions[i].blanks.length;
-            for (let j=0;j<number;j++) {
-                let random = Math.floor(Math.random() * number)
+            if (questions[i].blanks !== undefined && questions[i].blanks !== null && questions[i].blanks.length !== undefined) {
+                let number = questions[i].blanks.length;
+                for (let j=0;j<number;j++) {
+                    let random = Math.floor(Math.random() * number)
 
-                let temp = questions[i].blanks[j];
-                questions[i].blanks[j] = questions[i].blanks[random];
-                questions[i].blanks[random] = temp;
+                    let temp = questions[i].blanks[j];
+                    questions[i].blanks[j] = questions[i].blanks[random];
+                    questions[i].blanks[random] = temp;
 
-                questions[i].answer.push("")
+                    questions[i].answer.push("")
+                }
             }
 
             // clear sentences and give index
@@ -319,27 +342,36 @@ router.post('/solvetest', verify, async (req, res) => {
     try {
         var dataBase = db.getDb();
         let group = await dataBase.collection('groups').findOne({
-            members: {$elemMatch: {id: userId}},
-            tests: {$elemMatch: {test: testId}}
+            tests: {$elemMatch: {test: testId}},
+            $or: [ {members: {$elemMatch: {id: userId}} }, {teacher: userId}],
         });
         
         let testTime;
         let fromGroup;
-        for (let i=0;i<group.tests.length;i++) {
-            if (group.tests[i].test.equals(testId)) {
-                testTime = group.tests[i].time;
-                fromGroup = group._id;
+
+        if (group) {
+            for (let i=0;i<group.tests.length;i++) {
+                if (group.tests[i].test.equals(testId)) {
+                    testTime = group.tests[i].time;
+                    fromGroup = group._id;
+                }
             }
         }
-
-        if (!group) res.status(500).send('No match!');
 
         let test = await dataBase.collection('tests').findOne({_id: testId});
         if (test) {
             clearAnswers(test);
-            test.time = testTime;
-            test.fromGroup = fromGroup;
-            res.status(200).send(test);
+            test.time = testTime || 0;
+            test.fromGroup = fromGroup || null;
+
+            let temp = test.questions;
+            for (let i=0;i<temp.length;i++) {
+                if (temp[i].picture !== undefined) temp[i].picture = (await getImage(userId, test.name, i)).toString();
+            }
+
+            let exp = test.time * 60;
+            let testToken = jwt.sign({id: userId, test: test.id}, 'secret', {expiresIn: `${exp}s`});
+            res.status(200).send({test, testToken});
         } else {
             res.status(400).send('Could not find a test');
         }

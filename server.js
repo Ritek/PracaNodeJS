@@ -1,6 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
-const cors = require('cors');
+//const cors = require('cors');
 const app = express();
 
 const fileUpload = require('express-fileupload');
@@ -25,7 +25,7 @@ app.use(express.urlencoded({extended: true}));
 app.use(cookieParser());
 
 app.use(fileUpload());
-app.use('/static', express.static('pictures'));
+//app.use('/static', express.static('pictures'));
 
 app.get('/', (req,res) => {
     res.send('Home route works');

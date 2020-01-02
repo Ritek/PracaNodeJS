@@ -118,22 +118,24 @@ router.post('/getgroups', verify, async (req, res) => {
 
 router.post('/getgroup', verify, async (req, res) => {
     let groupId = oID(req.body.groupId);
+    console.log(req.body.groupId);
     let userId = oID(req.user.id);
 
     try {
         var dataBase = db.getDb();
 
         const group = await dataBase.collection('groups').findOne({_id: groupId, teacher: userId});
+        console.log(group);
 
         let testsNotInGroup = [];
         let testsInGroup = [];
         let filter = [];
     
         for (let i=0;i<group.tests.length;i++) {
-            let test = await dataBase.collection('tests').findOne({_id: group.tests[i].test});
+            console.log(group.tests[i].test);
+            let test = await dataBase.collection('tests').findOne({ _id: oID(group.tests[i].test) });
             testsInGroup.push({id: test._id, name: test.name, tags: test.tags, time: group.tests[i].time, autoCheck: group.tests[i].autoCheck})
             filter.push(test._id);
-            console.log(test._id);
         }
 
         testsNotInGroup = await dataBase.collection('tests').find({_id: {$nin: filter}}).toArray();
@@ -173,7 +175,9 @@ router.post('/deletemembers', verify, async (req, res) => {
 
 router.post('/addmembers', verify, async (req, res) => {
     try {
+        console.log(req.body);
         let groupId = oID(req.body.groupId);
+        console.log(req.body.members);
         let array = req.body.members;
 
         console.log('groupId', groupId);
@@ -187,7 +191,7 @@ router.post('/addmembers', verify, async (req, res) => {
         }
 
         await dataBase.collection('groups').updateOne({_id: groupId}, {$addToSet: {members: {$each: newMembers}}});
-        let group = await dataBase.collection('groups').findOne({_id: groupId});
+        let group = await dataBase.collection('groups').findOne({id: groupId});
         
         console.log(group);
         res.status(200).send(group.members);
@@ -229,8 +233,7 @@ router.post('/deletetests', verify, async (req, res) => {
     let testArray = req.body.tests;
     let userId = oID(req.user.id);
 
-    console.log("id", groupId);
-    console.log("arr", testArray);
+
     for (let i=0;i<testArray.length;i++) testArray[i] = oID(testArray[i]);
 
     try {
