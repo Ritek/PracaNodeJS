@@ -25,10 +25,10 @@ router.post('/register', async (req, res) => {
 
     // create login from email if not provided
     let userLogin;
-    if (req.body.userLogin === '' || req.body.userLogin === undefined) {
+    if (req.body.login === '' || req.body.login === undefined) {
         userLogin = req.body.email.substr(0, req.body.email.indexOf('@'));
     } else {
-        userLogin = req.body.email;
+        userLogin = req.body.login;
     }
 
     // create user

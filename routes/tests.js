@@ -82,14 +82,12 @@ router.post('/gettest', verify, async (req, res) => {
         let questions = test.questions;
 
         for (let i=0;i<questions.length;i++) {
-            console.log(i);
             if (questions[i].picture !== undefined) {
                 questions[i].picture = "";
                 questions[i].image64 = "";
                 questions[i].image64 = (await getImage(userId, test.name, i)).toString();
             }
         }
-        console.log('2!');
         return res.status(200).send(test);
     } catch(error) {
         console.log(error);
@@ -366,7 +364,7 @@ router.post('/solvetest', verify, async (req, res) => {
 
             let temp = test.questions;
             for (let i=0;i<temp.length;i++) {
-                if (temp[i].picture !== undefined) temp[i].picture = (await getImage(userId, test.name, i)).toString();
+                if (temp[i].picture !== undefined) temp[i].picture = (await getImage(test.author, test.name, i)).toString();
             }
 
             let exp = test.time * 60;
@@ -399,6 +397,7 @@ const checkMistakes = (questions, stencil, test, autoCheck) => {
                 if (questions[i].answer.indexOf(stencil[i].regArray[j]) !== -1) correct++;
             }
         } else if (questions[i].type === "open") numOfQuestions = stencil[i].regArray.length;
+
         if (questions[i].type === "choices") {
             //console.log('Choices');
             numOfQuestions = 1;
@@ -446,7 +445,7 @@ const checkMistakes = (questions, stencil, test, autoCheck) => {
         }
 
         //in for
-        questions[i].correct = (stencil[i].points / numOfQuestions) * correct;
+        questions[i].correct = Math.floor( (stencil[i].points / numOfQuestions) * correct );
         allPossiblePoints += stencil[i].points;
         allGotPoints += questions[i].correct;
 
@@ -464,7 +463,7 @@ const checkMistakes = (questions, stencil, test, autoCheck) => {
 
 router.post('/savesolved', verify, async (req, res) => {
     console.log('savesolved');
-    //console.log(req.body);
+
     let test = req.body.test;
     const userId = oID(req.user.id);
     const testId = oID(test._id);

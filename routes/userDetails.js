@@ -9,10 +9,15 @@ const verify = require('./verifyToken');
 const oID = require('mongodb').ObjectID;
 
 const getImage = async (userId) => {
-    let data = await fs.readFile(`${__dirname}/../pictures/${userId}/avatar.png`);
-    let str64 = new Buffer(data).toString('base64');
+    try {
+        let data = await fs.readFile(`${__dirname}/../pictures/${userId}/avatar.png`);
+        let str64 = new Buffer(data).toString('base64');
 
-    return(str64);
+        return(str64.toString());
+    } catch(err) {
+        return undefined;
+    }
+    
 }
 
 router.post('/getdetails', verify, async (req, res) => {
@@ -23,14 +28,10 @@ router.post('/getdetails', verify, async (req, res) => {
         var dataBase = db.getDb();
         const temp = await dataBase.collection('users').findOne({_id: userId});
 
-        /* if (!fs.existsSync(`${__dirname+'/../'}/pictures/${req.user.id}/avatar.png`)) {
-            temp.picture = null; 
-        } else temp.picture = `/${req.user.id}/avatar.png`; */
-
         user = {
             login: temp.login,
             email: temp.email,
-            imgPath: (await getImage(userId)).toString(),
+            imgPath: await getImage(userId),
         }
 
         res.status(200).send(user);

@@ -7,6 +7,8 @@ const fileUpload = require('express-fileupload');
 
 const cookieParser = require('cookie-parser');
 
+const rateLimit = require('express-rate-limit');
+
 const db = require('./db');
 
 //app.use(cors());
@@ -19,13 +21,19 @@ const groupRoute = require('./routes/groups');
 const userRoute = require('./routes/userDetails');
 const testsRoute = require('./routes/tests');
 
+//rate limit
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100
+})
+
 //neaded middleware
 app.use(express.json());
 app.use(express.urlencoded({extended: true}));
 app.use(cookieParser());
-
 app.use(fileUpload());
-//app.use('/static', express.static('pictures'));
+//app.use(limiter);
+
 
 app.get('/', (req,res) => {
     res.send('Home route works');
