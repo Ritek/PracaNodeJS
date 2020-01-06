@@ -8,11 +8,14 @@ const verify = require('./verifyToken');
 const fs = require('fs').promises;
 const xfs = require('fs-extra');
 
+const {checkString} = require('../checkChars');
+
 router.post('/createtest', verify, async (req, res) => {
     let test = JSON.parse(req.body.test);
     test.author = oID(req.user.id);
 
-    //console.log(test);
+    if (checkString(test.name)) return res.status(400).send("Incorrect value");
+
     // create folder for test
     fs.mkdir(`${__dirname+'/../'}/pictures/${req.user.id}/${test.name}`, (err) => {
         if (err) throw err;
