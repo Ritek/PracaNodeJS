@@ -138,7 +138,7 @@ router.post('/getgroup', verify, async (req, res) => {
             filter.push(test._id);
         }
 
-        testsNotInGroup = await dataBase.collection('tests').find({_id: {$nin: filter}}).toArray();
+        testsNotInGroup = await dataBase.collection('tests').find({_id: {$nin: filter}, author: userId}).toArray();
         for (let i=0;i<testsNotInGroup.length;i++) {
             delete testsNotInGroup[i].questions;
         }

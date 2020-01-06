@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 const verify = require('./verifyToken');
 
 const fs = require('fs').promises;
-const xfs = require('fs-extra');
 
 const {checkString} = require('../checkChars');
 
@@ -119,7 +118,7 @@ router.post('/gettest', verify, async (req, res) => {
 });
 
 
-router.post('/getsomonestest', verify, async (req, res) => {
+/* router.post('/getsomonestest', verify, async (req, res) => {
     console.log('getsomonestest');
     if (checkString(req.body.testId)) return res.status(400).send("Incorrect value");
     let testId = oID(req.body.testId);
@@ -145,7 +144,7 @@ router.post('/getsomonestest', verify, async (req, res) => {
     } catch(error) {
         console.log(error);
     }
-});
+}); */
 
 router.post('/edittest', verify, async (req, res) => {
     console.log('edittest');
@@ -228,7 +227,7 @@ router.post('/deletetest', verify, async (req, res) => {
         .then(prom1 => {
             dataBase.collection('tests').deleteOne({_id: testId, author: oID(req.user.id)});
 
-            xfs.rmdir(`${__dirname+'/../'}/pictures/${req.user.id}/${prom1.name}`, {recursive: true}, err => {
+            fs.rmdir(`${__dirname+'/../'}/pictures/${req.user.id}/${prom1.name}`, {recursive: true}, err => {
                 console.log(err);
             })
         })
@@ -514,8 +513,11 @@ router.post('/savesolved', verify, async (req, res) => {
 
         checkMistakes(test.questions, stencil.questions, test, autoCheck);
 
+        let user = await dataBase.collection('users').findOne({_id: userId});
+
         test.groupName = group.name;
         test.solvedBy = userId;
+        test.solverEmail = user.email;
         delete test._id;
 
         let insert = await dataBase.collection('solved').insertOne(test);
@@ -583,8 +585,20 @@ router.post('/getallsolved', verify, async (req, res) => {
         let awaitTests = await dataBase.collection('solved').find({author: req.user.id, status: 'awaiting'}).toArray();
 
         console.log(gradedTests)
-        //gradedTests.forEach(element => delete element.questions);
-        //awaitTests.forEach(element => delete element.questions);
+        gradedTests.forEach(element => delete element.questions);
+        awaitTests.forEach(element => delete element.questions);
+
+        for (let i=0;i<gradedTests;i++) {
+            let user = await dataBase.collection('user').findOne({_id: oID(gradedTests[i].solvedBy)});
+            gradedTests[i].solvedBy = user.email;
+            delete gradedTests[i].questions;
+        }
+
+        for (let i=0;i<awaitTests;i++) {
+            let user = await dataBase.collection('user').findOne({_id: oID(awaitTests[i].solvedBy)});
+            awaitTests[i].solvedBy = user.email;
+            delete awaitTests[i].questions;
+        }
 
 
         res.status(200).send({gradedTests: gradedTests, awaitTests: awaitTests});
