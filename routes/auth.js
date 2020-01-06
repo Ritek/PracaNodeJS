@@ -8,6 +8,8 @@ const decode = require('jwt-decode');
 
 const oID = require('mongodb').ObjectID;
 
+const fs = require('fs').promises;
+
 
 router.post('/register', async (req, res) => {
     console.log("login:", req.body.login);
