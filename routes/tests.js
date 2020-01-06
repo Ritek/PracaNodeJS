@@ -50,12 +50,11 @@ router.post('/createtest', verify, async (req, res) => {
                     if (err) console.log(err);
                 });
 
-                test.questions[i].picture = `ex-${i}.png`;
-            }
-
-        // delete base 64 encoded image and set path to public folder
-        delete test.questions[i].image64;
-    }
+                test.questions[i].picture = (`ex-${i}.png`).toString();
+                // delete base 64 encoded image
+                delete test.questions[i].image64;
+            } 
+        }
     });
 
     var dataBase = db.getDb();
@@ -165,7 +164,7 @@ router.post('/edittest', verify, async (req, res) => {
                 if (err) console.log(err);
             });
 
-            test.questions[i].picture = `static/${req.user.id}/${test.name}/ex-${i}.png`;
+            test.questions[i].image64 = "";
         } 
         
         if (test.questions[i].picture === undefined) {
@@ -229,7 +228,7 @@ router.post('/deletetest', verify, async (req, res) => {
         .then(prom1 => {
             dataBase.collection('tests').deleteOne({_id: testId, author: oID(req.user.id)});
 
-            fs.rmdir(`${__dirname+'/../'}/pictures/${req.user.id}/${prom1.name}`, {recursive: true}, err => {
+            xfs.rmdir(`${__dirname+'/../'}/pictures/${req.user.id}/${prom1.name}`, {recursive: true}, err => {
                 console.log(err);
             })
         })
