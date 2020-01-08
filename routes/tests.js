@@ -54,11 +54,14 @@ router.post('/createtest', verify, async (req, res) => {
                 delete test.questions[i].image64;
             } 
         }
-    });
+    }).then(res2 => {
+        var dataBase = db.getDb();
+        dataBase.collection('tests').insertOne(test);
+        return res.status(200).send('OK');
+    })
 
-    var dataBase = db.getDb();
-    await dataBase.collection('tests').insertOne(test);
-    res.status(200).send('OK');
+
+    return res.status(200).send('OK');
 });
 
 
@@ -163,7 +166,7 @@ router.post('/edittest', verify, async (req, res) => {
                 if (err) console.log(err);
             });
 
-            test.questions[i].image64 = "";
+            delete test.questions[i].image64;
         } 
         
         if (test.questions[i].picture === undefined) {
