@@ -8,14 +8,15 @@ const decode = require('jwt-decode');
 
 const oID = require('mongodb').ObjectID;
 
-const fs = require('fs').promises;
-
 
 router.post('/register', async (req, res) => {
-    console.log("login:", req.body.login);
+    console.log("login:", req.body);
 
     const {error} = registerValidaion(req.body);
-    if (error) return res.status(400).send(error.details[0].message);
+    if (error) {
+        console.log('error');
+        return res.status(400).send(error.details[0].message);
+    }
 
     // hash the password
     const salt = await bcrypt.genSalt(10);
@@ -34,7 +35,7 @@ router.post('/register', async (req, res) => {
         login: userLogin,
         email: req.body.email,
         password: hashPassword,
-        role: 'student',
+        role: req.body.type || 'student',
         groups: [],
     }
 
@@ -63,7 +64,7 @@ router.post('/login', async (req, res) => {
     console.log('email:', req.body.email);
     console.log('password:', req.body.password);
 
-    const {error} = registerValidaion(req.body);
+    const {error} = loginValidaion(req.body);
     if (error) return res.status(400).send('Email was not found');
 
     try {
