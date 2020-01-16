@@ -154,6 +154,7 @@ router.post('/getgroup', verify, async (req, res) => {
 
 
 router.post('/deletemembers', verify, async (req, res) => {
+    console.log('deletemember');
     try {
         let groupId = oID(req.body.groupId);
         let array = req.body.members;
@@ -174,6 +175,7 @@ router.post('/deletemembers', verify, async (req, res) => {
 
 
 router.post('/addmembers', verify, async (req, res) => {
+    console.log('addmember');
     try {
         console.log(req.body);
         let groupId = oID(req.body.groupId);
@@ -190,14 +192,20 @@ router.post('/addmembers', verify, async (req, res) => {
             if (student) newMembers.push({id: student._id, login: student.login, email: student.email});
         }
 
-        await dataBase.collection('groups').updateOne({_id: groupId}, {$addToSet: {members: {$each: newMembers}}});
-        let group = await dataBase.collection('groups').findOne({id: groupId});
+        await dataBase.collection('groups').findOneAndUpdate( 
+            {_id: groupId}, 
+            {$addToSet: {members: {$each: newMembers}}}, 
+            {returnOriginal: false} 
+        ).then(x => {
+            console.log(x);
+            return res.status(200).send('ok');
+        })
         
-        console.log(group);
-        res.status(200).send(group.members);
+        return res.status(500).send('Error');
+        
     } catch(error) {
         console.log(error);
-        res.status(400).send('Could not modify group');
+        return res.status(400).send('Could not modify group');
     }  
 });
 

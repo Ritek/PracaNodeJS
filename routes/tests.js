@@ -270,7 +270,7 @@ router.post('/studenttests', verify, async (req, res) => {
 
     try {
         var dataBase = db.getDb();
-        let groups = await dataBase.collection('groups').find({members: {$elemMatch: {id: oID(req.user.id)}}}).toArray();
+        let groups = await dataBase.collection('groups').find({members: {$elemMatch: {id: req.user.id}}}).toArray();
         //console.log(groups);
 
         let testsArray = [];
@@ -366,13 +366,14 @@ router.post('/solvetest', verify, async (req, res) => {
     const userId = oID(req.user.id);
     //console.log('testId:', testId);
     //console.log('userId:', userId);
-
+    
     try {
         var dataBase = db.getDb();
         let group = await dataBase.collection('groups').findOne({
             tests: {$elemMatch: {test: testId}},
-            $or: [ {members: {$elemMatch: {id: userId}} }, {teacher: userId}],
+            $or: [ {members: {$elemMatch: {id: req.user.id}} }, {teacher: userId}],
         });
+        console.log('group',group);
         
         let testTime;
         let fromGroup;
@@ -386,11 +387,18 @@ router.post('/solvetest', verify, async (req, res) => {
             }
         }
 
+        console.log('testTime', testTime);
+
         let test = await dataBase.collection('tests').findOne({_id: testId});
         if (test) {
             clearAnswers(test);
-            test.time = testTime || 0;
-            test.fromGroup = fromGroup || null;
+            if (test.author !== userId) {
+                test.time = testTime;
+                test.fromGroup = fromGroup || null;
+            } else {
+                test.time = 45;
+                test.fromGroup = "";
+            }
 
             let temp = test.questions;
             for (let i=0;i<temp.length;i++) {
@@ -406,12 +414,61 @@ router.post('/solvetest', verify, async (req, res) => {
     } catch(error) {
         console.log(error);
     }
+
+    /*
+    try {
+        var dataBase = db.getDb();
+        let group = await dataBase.collection('groups').findOne({
+            tests: {$elemMatch: {test: testId}},
+            $or: [ {members: {$elemMatch: {id: userId}} }, {teacher: userId}],
+        });
+        console.log(group);
+        
+        let testTime;
+        let fromGroup;
+
+        if (group) {
+            for (let i=0;i<group.tests.length;i++) {
+                if (group.tests[i].test.equals(testId)) {
+                    testTime = group.tests[i].time;
+                    fromGroup = group._id;
+                }
+            }
+        }
+
+        console.log('testTime', testTime);
+
+        let test = await dataBase.collection('tests').findOne({_id: testId});
+        if (test) {
+            clearAnswers(test);
+            if (test.author !== userId) {
+                test.time = testTime;
+                test.fromGroup = fromGroup || null;
+            } else {
+                test.time = 45;
+                test.fromGroup = "";
+            }
+
+            let temp = test.questions;
+            for (let i=0;i<temp.length;i++) {
+                if (temp[i].picture !== undefined) temp[i].picture = (await getImage(test.author, test.name, i)).toString();
+            }
+
+            let exp = test.time * 60;
+            //let testToken = jwt.sign({id: userId, test: test.id}, 'secret', {expiresIn: `${exp}s`});
+            res.status(200).send({test});
+        } else {
+            res.status(400).send('Could not find a test');
+        }
+    } catch(error) {
+        console.log(error);
+    }*/
 });
 
 
 const checkMistakes = (questions, stencil, test, autoCheck) => {
-    console.log('==============')
-    console.log('check Mistakes')
+    //console.log('==============')
+    //console.log('check Mistakes')
     let allPossiblePoints = 0;
     let allGotPoints = 0;
 
@@ -424,6 +481,12 @@ const checkMistakes = (questions, stencil, test, autoCheck) => {
             numOfQuestions = stencil[i].regArray.length;
 
             for (let j=0;j<stencil[i].regArray.length;j++) {
+                /* if (stencil[i].regArray[j].indexOf('\\')) {
+                    let re = new RegExp(stencil[i].regArray[j]);
+                    if (re.test(questions[i].answer)) correct++;
+                } else {
+                    if (questions[i].answer.indexOf(stencil[i].regArray[j]) !== -1) correct++;
+                } */
                 if (questions[i].answer.indexOf(stencil[i].regArray[j]) !== -1) correct++;
             }
         } else if (questions[i].type === "open") numOfQuestions = stencil[i].regArray.length;
@@ -546,7 +609,7 @@ router.post('/studentsolved', verify, async (req, res) => {
 
         for (let i=0;i<tests.length;i++) {
             let group = await dataBase.collection('groups').findOne({_id: oID(tests[i].fromGroup)});
-            tests[i].groupName = group.name;
+            //tests[i].groupName = group.name;
             delete tests[i].questions;
         }
 
