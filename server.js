@@ -16,7 +16,7 @@ dotenv.config();
 
 //import routes
 const authRoute = require('./routes/auth');
-const postRoute = require('./routes/posts');// change later!!!
+const postRoute = require('./routes/posts');
 const groupRoute = require('./routes/groups');
 const userRoute = require('./routes/userDetails');
 const testsRoute = require('./routes/tests');
